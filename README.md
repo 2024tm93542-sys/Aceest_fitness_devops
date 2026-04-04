@@ -80,3 +80,6 @@ Test files are located in the `tests/` directory. Ensure dependencies are instal
 ## Endpoints
 - `/` : Health check (returns Hello, World!)
 - `/init_db` : Initializes the SQLite database
+
+## Watch Demo
+[![Watch Demo]](2024TM93542_DevOps_Assignment_1_demo.mp4)
