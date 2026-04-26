@@ -78,6 +78,10 @@ jobs:
           VERSION=v${{ github.run_number }}
           sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$VERSION|g" k8s-manifests/deployment.yaml > canary.yaml
           sed -i "s|name: flask-app|name: flask-app-canary|g" canary.yaml
+
+          # Replace namespace in Canary Deployment
+          sed -i "s|namespace: aceest-fitness|namespace: aceest-fitness-canary|g" canary.yaml
+
           # Replace placeholder so Canary has a valid label
           sed -i "s|VERSION_PLACEHOLDER|canary|g" canary.yaml
           
