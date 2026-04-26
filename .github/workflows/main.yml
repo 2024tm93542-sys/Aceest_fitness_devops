@@ -79,13 +79,13 @@ jobs:
       - name: Set image in manifest
         run: |
           VERSION=v${{ github.run_number }}
-          sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$VERSION|g" k8s/deployment.yaml > k8s/deployment_patched.yaml
-          cat k8s/deployment_patched.yaml
+          sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$VERSION|g" k8s-manifests/deployment.yaml > k8s-manifests/deployment_patched.yaml
+          cat k8s-manifests/deployment_patched.yaml
 
       - name: Deploy to AKS
         run: |
-          kubectl apply -f k8s/deployment_patched.yaml --kubeconfig=kubeconfig.yaml
-          kubectl apply -f k8s/service.yaml --kubeconfig=kubeconfig.yaml
+          kubectl apply -f k8s-manifests/deployment_patched.yaml --kubeconfig=kubeconfig.yaml
+          kubectl apply -f k8s-manifests/service.yaml --kubeconfig=kubeconfig.yaml
 
       - name: Wait for pods to be ready
         run: |
