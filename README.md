@@ -1,85 +1,186 @@
-# Minimal Flask DevOps Example
+# 🚀 Minimal Flask DevOps Example
 
-This repository demonstrates a minimal Flask application with DevOps best practices, including CI/CD integration using Jenkins and GitHub Actions. The project features:
-- A simple Flask REST API
-- SQLite file-based database (initialized via endpoint)
-- Unit tests with pytest (in `tests/`)
-- Dockerfile for containerization
-- Automated pipelines for build and test
+This repository demonstrates a **Flask-based REST API** with complete DevOps lifecycle implementation including:
 
----
-
-## Local Development Setup
-
-1. **Install dependencies:**
-   ```sh
-   pip install -r requirements.txt
-   ```
-2. **Run the application:**
-   ```sh
-   python -m app.main
-   ```
-   The app will start on [http://localhost:5000](http://localhost:5000).
-3. **Initialize the database (optional):**
-   ```sh
-   curl http://localhost:5000/init_db
-   ```
-4. **Access endpoints:**
-   - `/` : Health check (returns Hello, World!)
-   - `/init_db` : Initializes the SQLite database
+* CI/CD using **GitHub Actions**
+* Containerization using **Docker**
+* Deployment on **Azure Kubernetes Service (AKS)**
+* Advanced deployment strategies:
+  * Rolling Update deployment strategy
+  * Canary Deployment (validation in isolated namespace)
+  * Blue-Green Deployment (traffic switching via service selector)
+  * Automated rollback on failure
 
 ---
 
-## Running Tests Manually
+# 📦 Application Overview
 
-To execute all unit tests using pytest:
+* Flask REST API
+* SQLite file-based database
+* Pytest unit testing
+* Docker containerized application
+
+---
+
+# 🧪 Local Development Setup
+
+### 1. Install dependencies
+
+```sh
+pip install -r requirements.txt
+```
+
+### 2. Run application
+
+```sh
+python -m app.main
+```
+
+App runs at:
+
+```
+http://localhost:5000
+```
+
+### 3. Initialize DB (optional)
+
+```sh
+curl http://localhost:5000/init_db
+```
+
+---
+
+# 🧪 Running Tests
 
 ```sh
 python -m pytest
 ```
 
-Test files are located in the `tests/` directory. Ensure dependencies are installed before running tests.
+Test cases are located in:
+
+```
+tests/
+```
 
 ---
 
-## Docker Usage
+# 🐳 Docker Usage
 
-1. **Build the Docker image:**
-   ```sh
-   docker build -t flask-devops-demo .
-   ```
-2. **Run the container:**
-   ```sh
-   docker run -p 5000:5000 flask-devops-demo
-   ```
+### Build image
 
----
+```sh
+docker build -t flask-devops-demo .
+```
 
-## CI/CD Integration Overview
+### Run container
 
-### Jenkins Pipeline
-- **Stages:**
-  1. Checkout code from SCM
-  2. Install Python dependencies
-  3. Run unit tests with pytest
-  4. Build Docker image
-- The pipeline is defined in the `Jenkinsfile` and can be used in a Jenkins server for automated build and test on each commit.
-
-### GitHub Actions Workflow
-- **Triggers:** On push or pull request to the `main` branch
-- **Steps:**
-  1. Checkout code
-  2. Set up Python 3.11
-  3. Install dependencies
-  4. Run tests with pytest
-  5. Build Docker image
-- The workflow is defined in `.github/workflows/main.yml` and provides automated CI for every code change on GitHub.
+```sh
+docker run -p 5000:5000 flask-devops-demo
+```
 
 ---
 
-## Endpoints
-- `/` : Health check (returns Hello, World!)
-- `/init_db` : Initializes the SQLite database
+# ☸️ Kubernetes Deployment (AKS)
 
-## Watch Demo
-[![Watch Demo]](2024TM93542_DevOps_Assignment_1_demo.mp4)
+This project is deployed on **Azure Kubernetes Service (AKS)** using:
+
+### 🔵 Blue-Green Deployment Strategy
+
+* **Blue = stable production version**
+* **Green = new release candidate**
+* Traffic is switched via **Service selector update**
+
+### 🟡 Canary Deployment Strategy
+
+* New version deployed in **separate namespace**
+* Validated using **port-forward + health checks**
+* Removed after validation
+
+### 🔁 Rollback Strategy
+
+* Automatic rollback using:
+
+```sh
+kubectl rollout undo deployment/flask-app
+```
+
+---
+
+# ⚙️ CI/CD Pipeline (GitHub Actions)
+
+### Pipeline stages:
+
+### 1️⃣ Test Stage
+
+* Checkout code
+* Setup Python 3.11
+* Install dependencies
+* Run pytest
+
+### 2️⃣ Build & Push Stage
+
+* Build Docker image
+* Tag with:
+
+  * `latest`
+  * versioned tag (`vX`)
+* Push to Docker Hub
+
+### 3️⃣ Deploy Stage (AKS)
+
+* Deploy Canary in isolated namespace
+* Validate via health check
+* Deploy Blue-Green resources
+* Switch traffic using service selector
+* Cleanup canary resources
+
+### 4️⃣ Rollback Stage
+
+* Triggered automatically on failure
+* Reverts deployment to previous stable version
+
+## Jenkins Pipeline  
+**Stages:** 
+1. Checkout code from SCM 
+2. Install Python dependencies 
+3. Run unit tests with pytest 
+4. Build Docker image -  
+The pipeline is defined in the Jenkinsfile and can be used in a Jenkins server for automated build and test on each commit.
+
+---
+
+# 🌐 Endpoints
+
+| Endpoint    | Description                |
+| ----------- | -------------------------- |
+| `/`         | Health check               |
+| `/init_db`  | Initialize SQLite database |
+| `/login`    | User authentication        |
+| `/clients`  | Client management          |
+| `/workouts` | Workout tracking           |
+
+---
+
+# 🔄 Deployment Architecture Summary
+
+```
+GitHub Push
+     ↓
+GitHub Actions CI
+     ↓
+Docker Build + Push
+     ↓
+AKS Deploy (Canary → Validate)
+     ↓
+Blue-Green Switch
+     ↓
+Production Live
+     ↓
+Rollback (if failure)
+```
+
+---
+
+# 🎥 Demo
+
+[Watch Demo](2024TM93542_DevOps_Assignment_1_demo.mp4)
