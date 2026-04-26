@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 
 env:
-  IMAGE_NAME: your-dockerhub-username/flask-devops-demo
+  IMAGE_NAME: anubhavgupta2810/aceest_fitness
 
 jobs:
 
