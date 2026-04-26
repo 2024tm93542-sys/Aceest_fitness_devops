@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: flask-app
+  name: flask-app # The pipeline will use sed to change this to flask-app-blue or flask-app-green
   namespace: aceest-fitness
 spec:
   replicas: 2
@@ -15,15 +15,17 @@ spec:
   selector:
     matchLabels:
       app: flask-app
-
+      version: VERSION_PLACEHOLDER # The pipeline will replace this with the target color
+      
   template:
     metadata:
       labels:
         app: flask-app
+        version: VERSION_PLACEHOLDER # The pipeline will replace this with the target color
     spec:
       containers:
         - name: flask-container
-          image: IMAGE_PLACEHOLDER
+          image: IMAGE_PLACEHOLDER # The pipeline will replace this with the actual docker image tag
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000

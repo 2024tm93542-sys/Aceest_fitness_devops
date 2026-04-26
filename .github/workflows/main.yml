@@ -9,10 +9,9 @@ env:
 
 jobs:
 
-  # CI JOB
+  # CI JOB (Kept exactly as provided)
   test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,11 +29,10 @@ jobs:
       - name: Run tests
         run: python -m pytest
 
-  # BUILD + PUSH JOB (runs only if test passes)
+  # BUILD + PUSH JOB (Kept exactly as provided)
   build-and-push:
-    needs: test   
+    needs: test
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -61,57 +59,128 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    outputs:
+      active_env: ${{ steps.toggle.outputs.active_env }}
+      target_env: ${{ steps.toggle.outputs.target_env }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set kubeconfig
-        run: |
-          echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
+        run: echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
 
-      # Verify cluster access
-      - name: Verify AKS access
-        run: |
-          kubectl --kubeconfig=kubeconfig.yaml config current-context
-          kubectl --kubeconfig=kubeconfig.yaml get nodes
+      - name: Verify cluster
+        run: kubectl get nodes --kubeconfig=kubeconfig.yaml
 
-      - name: Set image in manifest
+      # 🟡 CANARY 
+      - name: Prepare & Deploy Canary
         run: |
           VERSION=v${{ github.run_number }}
-          sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$VERSION|g" k8s-manifests/deployment.yaml > k8s-manifests/deployment_patched.yaml
-          cat k8s-manifests/deployment_patched.yaml
+          sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$VERSION|g" k8s-manifests/deployment.yaml > canary.yaml
+          sed -i "s|name: flask-app|name: flask-app-canary|g" canary.yaml
+          # Replace placeholder so Canary has a valid label
+          sed -i "s|VERSION_PLACEHOLDER|canary|g" canary.yaml
+          
+          kubectl create ns aceest-fitness-canary --kubeconfig=kubeconfig.yaml || true
+          kubectl apply -n aceest-fitness-canary -f canary.yaml --kubeconfig=kubeconfig.yaml
+          
+          kubectl wait --for=condition=available deployment/flask-app-canary \
+            -n aceest-fitness-canary --timeout=120s --kubeconfig=kubeconfig.yaml
 
-      - name: Deploy to AKS
+      - name: Test Canary
         run: |
+          kubectl port-forward deployment/flask-app-canary 9090:5000 \
+            -n aceest-fitness-canary --kubeconfig=kubeconfig.yaml &
+          sleep 5
+          curl -f http://localhost:9090 | grep "ACEest Fitness API running"
+          
+      - name: Cleanup Canary
+        run: |
+          kubectl delete ns aceest-fitness-canary --kubeconfig=kubeconfig.yaml || true
+
+      # 🔵🟢 DYNAMIC BLUE-GREEN DEPLOYMENT
+      - name: Determine Target Environment (The Toggle)
+        id: toggle
+        run: |
+          ACTIVE_ENV=$(kubectl get svc flask-service -n aceest-fitness -o=jsonpath='{.spec.selector.version}' --kubeconfig=kubeconfig.yaml --ignore-not-found)
+          
+          if [ -z "$ACTIVE_ENV" ] || [ "$ACTIVE_ENV" == "green" ]; then
+            TARGET_ENV="blue"
+          else
+            TARGET_ENV="green"
+          fi
+          
+          echo "Currently Live: ${ACTIVE_ENV:-none}"
+          echo "Deploying to: $TARGET_ENV"
+          
+          # Set for current job
+          echo "TARGET_ENV=$TARGET_ENV" >> $GITHUB_ENV
+          echo "ACTIVE_ENV=$ACTIVE_ENV" >> $GITHUB_ENV
+          
+          # Set for downstream Rollback job
+          echo "target_env=$TARGET_ENV" >> $GITHUB_OUTPUT
+          echo "active_env=$ACTIVE_ENV" >> $GITHUB_OUTPUT
+
+      - name: Prepare & Deploy Target Environment
+        run: |
+          VERSION=v${{ github.run_number }}
+          TARGET=${{ env.TARGET_ENV }}
+          
+          sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$VERSION|g" k8s-manifests/deployment.yaml > target.yaml
+          sed -i "s|name: flask-app|name: flask-app-$TARGET|g" target.yaml
+          # Perform direct replacement of the version placeholder
+          sed -i "s|VERSION_PLACEHOLDER|$TARGET|g" target.yaml
+
           kubectl apply -f k8s-manifests/namespace.yaml --kubeconfig=kubeconfig.yaml
-          kubectl apply -n aceest-fitness -f k8s-manifests/deployment_patched.yaml --kubeconfig=kubeconfig.yaml
-          kubectl apply -n aceest-fitness -f k8s-manifests/service.yaml --kubeconfig=kubeconfig.yaml
+          kubectl apply -n aceest-fitness -f k8s-manifests/service.yaml --kubeconfig=kubeconfig.yaml || true
+          
+          kubectl apply -n aceest-fitness -f target.yaml --kubeconfig=kubeconfig.yaml
 
-      - name: Wait for pods to be ready
+      - name: Wait and Test Target
         run: |
-          kubectl wait --for=condition=available deployment/flask-app \
-            -n aceest-fitness \
-            --timeout=120s \
+          TARGET=${{ env.TARGET_ENV }}
+          
+          kubectl wait --for=condition=available deployment/flask-app-$TARGET \
+            -n aceest-fitness --timeout=120s \
             --kubeconfig=kubeconfig.yaml
 
+          kubectl port-forward deployment/flask-app-$TARGET 9091:5000 \
+            -n aceest-fitness --kubeconfig=kubeconfig.yaml &
+          sleep 5
+          curl -f http://localhost:9091 | grep "ACEest Fitness API running"
+
+      # 🔁 SWITCH TRAFFIC
+      - name: Switch Traffic to Target
+        run: |
+          TARGET=${{ env.TARGET_ENV }}
+          
+          echo "Tests passed! Switching live traffic to $TARGET..."
+          kubectl patch service flask-service \
+            -n aceest-fitness \
+            -p '{"spec":{"selector":{"app":"flask-app","version":"'"$TARGET"'"}}}' \
+            --kubeconfig=kubeconfig.yaml
+
+  # 🔁 ROLLBACK
   rollback:
     needs: deploy
     if: failure()
     runs-on: ubuntu-latest
-
     steps:
       - name: Set kubeconfig
-        run: |
-          echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
+        run: echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
 
-      - name: Rollback deployment
+      - name: Revert Traffic to Previous Version
         run: |
-          kubectl rollout undo deployment/flask-app -n aceest-fitness --kubeconfig=kubeconfig.yaml
+          PREVIOUS_STABLE="${{ needs.deploy.outputs.active_env }}"
+          
+          if [ -z "$PREVIOUS_STABLE" ]; then
+            echo "No previous stable version found. Manual intervention required."
+            exit 1
+          fi
 
-      - name: Verify rollback
-        run: |
-          kubectl rollout status deployment/flask-app \
+          echo "Deployment failed. Reverting traffic to $PREVIOUS_STABLE..."
+          
+          kubectl patch service flask-service \
             -n aceest-fitness \
-            --timeout=120s \
+            -p "{\"spec\":{\"selector\":{\"app\":\"flask-app\",\"version\":\"$PREVIOUS_STABLE\"}}}" \
             --kubeconfig=kubeconfig.yaml
