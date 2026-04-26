@@ -56,3 +56,39 @@ jobs:
           VERSION=v${{ github.run_number }}
           docker push $IMAGE_NAME:$VERSION
           docker push $IMAGE_NAME:latest
+  
+  # DEPLOY TO AKS
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
+
+      # Verify cluster access
+      - name: Verify AKS access
+        run: |
+          kubectl --kubeconfig=kubeconfig.yaml config current-context
+          kubectl --kubeconfig=kubeconfig.yaml get nodes
+
+      - name: Set image in manifest
+        run: |
+          VERSION=v${{ github.run_number }}
+          sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$VERSION|g" k8s/deployment.yaml > k8s/deployment_patched.yaml
+          cat k8s/deployment_patched.yaml
+
+      - name: Deploy to AKS
+        run: |
+          kubectl apply -f k8s/deployment_patched.yaml --kubeconfig=kubeconfig.yaml
+          kubectl apply -f k8s/service.yaml --kubeconfig=kubeconfig.yaml
+
+      - name: Wait for pods to be ready
+        run: |
+          kubectl wait --for=condition=available deployment/flask-app \
+            --timeout=120s \
+            --kubeconfig=kubeconfig.yaml
