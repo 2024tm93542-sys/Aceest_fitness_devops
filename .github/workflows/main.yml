@@ -84,11 +84,34 @@ jobs:
 
       - name: Deploy to AKS
         run: |
-          kubectl apply -f k8s-manifests/deployment_patched.yaml --kubeconfig=kubeconfig.yaml
-          kubectl apply -f k8s-manifests/service.yaml --kubeconfig=kubeconfig.yaml
+          kubectl apply -f k8s-manifests/namespace.yaml --kubeconfig=kubeconfig.yaml
+          kubectl apply -n aceest-fitness -f k8s-manifests/deployment_patched.yaml --kubeconfig=kubeconfig.yaml
+          kubectl apply -n aceest-fitness -f k8s-manifests/service.yaml --kubeconfig=kubeconfig.yaml
 
       - name: Wait for pods to be ready
         run: |
           kubectl wait --for=condition=available deployment/flask-app \
+            -n aceest-fitness \
+            --timeout=120s \
+            --kubeconfig=kubeconfig.yaml
+
+  rollback:
+    needs: deploy
+    if: failure()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
+
+      - name: Rollback deployment
+        run: |
+          kubectl rollout undo deployment/flask-app -n aceest-fitness --kubeconfig=kubeconfig.yaml
+
+      - name: Verify rollback
+        run: |
+          kubectl rollout status deployment/flask-app \
+            -n aceest-fitness \
             --timeout=120s \
             --kubeconfig=kubeconfig.yaml
