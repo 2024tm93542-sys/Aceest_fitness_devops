@@ -180,4 +180,8 @@ Rollback (if failure)
 
 # 🎥 Demo
 
-<video controls src="2024TM93542_DevOps_Assignment_2_demo.mp4" title="Watch Demo"></video>
+https://github.com/user-attachments/assets/53182357-e7e3-4d44-b5b8-f4d9fd88aa19
+
+
+
+
