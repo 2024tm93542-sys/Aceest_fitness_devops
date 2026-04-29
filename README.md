@@ -94,11 +94,11 @@ This project is deployed on **Azure Kubernetes Service (AKS)** using:
 
 * New version deployed in **separate namespace**
 * Validated using **port-forward + health checks**
-* Removed after validation
+* Cleaned up after validation
 
 ### 🔁 Rollback Strategy
 
-* Automatic rollback using:
+* Automatic (triggered on failure) rollback using:
 
 ```sh
 kubectl rollout undo deployment/flask-app
@@ -155,9 +155,6 @@ The pipeline is defined in the Jenkinsfile and can be used in a Jenkins server f
 | ----------- | -------------------------- |
 | `/`         | Health check               |
 | `/init_db`  | Initialize SQLite database |
-| `/login`    | User authentication        |
-| `/clients`  | Client management          |
-| `/workouts` | Workout tracking           |
 
 ---
 
@@ -183,4 +180,4 @@ Rollback (if failure)
 
 # 🎥 Demo
 
-[Watch Demo](2024TM93542_DevOps_Assignment_1_demo.mp4)
+<video controls src="2024TM93542_DevOps_Assignment_2_demo.mp4" title="Watch Demo"></video>
